@@ -1,14 +1,9 @@
-import java.io.IOException;
-import java.util.StringTokenizer;
+import java.io.File;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.IntWritable;
-import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
-import org.apache.hadoop.mapreduce.Mapper;
-import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
@@ -17,45 +12,16 @@ import org.apache.hadoop.util.GenericOptionsParser;
 
 
 public class InvertedIndex {
-	public static class InvertedIndexMapper extends 
-			Mapper<LongWritable, Text, Text, IntWritable> {
-		private final static IntWritable one = new IntWritable(1);
-		private Text word = new Text();
-		
-		@Override
-		protected void map(LongWritable key, Text value, Context context)
-				throws IOException, InterruptedException {
-			String line = value.toString();
-			StringTokenizer tokenizer = new StringTokenizer(line);
-			
-			while(tokenizer.hasMoreTokens()) {
-				word.set(tokenizer.nextToken());
-				context.write(word, one);
-			}
-		}
-	}
-	
-	public static class InvertedIndexReducer extends 
-			Reducer<Text, IntWritable, Text, IntWritable> {
-		private IntWritable value = new IntWritable(0);
-		
-		@Override
-		protected void reduce(Text key, Iterable<IntWritable> values, Context context) 
-				throws IOException, InterruptedException {
-			int sum = 0;
-			
-			for(IntWritable value : values) 
-				sum += value.get();
-			
-			value.set(sum);
-			context.write(key, value);
-		}
-	}
 	
 	public static void main(String[] args) throws Exception {
 		Configuration conf = new Configuration();
 		GenericOptionsParser parser = new GenericOptionsParser(conf, args);
 		args = parser.getRemainingArgs();
+		
+		//WARNING: this function is for debug. NEVER use in performance
+		delete(new File(args[1]));
+//		Formatter fr = new Formatter();
+//		String outpath = args[1] + fr.format("%1$tm%1$td%1$tH%1$tM%1$tS", new Date());
 		
 		Job job = new Job(conf, "InvertedIndex: input=" + args[0] + " output=" + args[1]);
 		job.setJarByClass(InvertedIndex.class);
@@ -64,9 +30,9 @@ public class InvertedIndex {
 		job.setReducerClass(InvertedIndexReducer.class);
 		
 		job.setMapOutputKeyClass(Text.class);
-		job.setMapOutputValueClass(IntWritable.class);
+		job.setMapOutputValueClass(Text.class);
 		job.setOutputKeyClass(Text.class);
-		job.setOutputValueClass(IntWritable.class);
+		job.setOutputValueClass(Text.class);
 		
 		job.setInputFormatClass(TextInputFormat.class);
 		job.setOutputFormatClass(TextOutputFormat.class);
@@ -77,6 +43,20 @@ public class InvertedIndex {
 		
 		boolean success = job.waitForCompletion(true);
 		System.out.println(success);
+	}
+	
+	static private void delete(File f) {
+		if (!f.exists()) return;
+		
+		if (f.isFile()) f.delete();
+		if (f.isDirectory()) {
+			File[] files = f.listFiles();
+			
+			for(int i = 0; i < files.length; i++) 
+				delete(files[i]);
+			
+			f.delete();
+		}
 	}
 
 }
